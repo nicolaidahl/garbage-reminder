@@ -233,8 +233,8 @@ def main():
     print(f"Sent. GatewayAPI response: {result}")
 
 
-# Cozy, family-friendly opening lines as (topic, text) pairs - warm observations
-# and verified Danish affald facts, NOT jokes. build_message picks one at random
+# Cozy, family-friendly opening lines as (topic, text) pairs - verified Danish
+# affald facts and named TV-character references, NOT jokes. build_message picks one at random
 # from the "general" lines plus the lines tagged for the bin(s) collected.
 # Topics: "general" (any bin) or a bin: "haveaffald", "pap", "storskrald",
 # "farligt". Full curation rules live in MAINTENANCE.md; a larger pool of vetted
@@ -244,32 +244,17 @@ GARBAGE_LINES = [
     # --- general (fits any bin) ---
     ("general", "Lille fakta: hver dansker smider omkring 750 kg affald ud om året."),
     ("general", "Dagrenovationen i Danmark er faldet 37% siden 2011, fordi vi sorterer mere."),
-    ("general", "Skraldemanden er en af de få, der altid kommer, som han lover."),
-    ("general", "En tom skraldespand er en lille frisk start på dagen."),
-    ("general", "Vinteren kommer, men skraldekalenderen holder året rundt."),
     # --- haveaffald ---
     ("haveaffald", "Vidste du det? Vi sorterer i snit 118 kg haveaffald pr. person om året."),
     ("haveaffald", "Det tager typisk 1-2 år for en bunke haveaffald at blive til muld."),
-    ("haveaffald", "Blade, græs og grene hører til i haveaffaldet."),
     ("haveaffald", "Sam Gamgee var gartner - han ville elske vores haveaffald."),
     ("haveaffald", "Groot er selv et træ - han ville føle sig hjemme i haveaffaldet."),
-    # --- pap (genuine advice only - no character ties land for cardboard) ---
+    # --- pap (fun facts only - no character ties land for cardboard) ---
     ("pap", "Lille detalje: pap og papir fylder omkring 34 kg pr. dansker om året."),
-    ("pap", "Pap kan genbruges mange gange og bliver til nyt pap og karton."),
-    ("pap", "Fladt pap fylder mindre og er nemmere at genbruge."),
-    ("pap", "Tag tape og flamingo af pappet - kun rent pap skal i."),
-    ("pap", "En pizzabakke med fedtpletter er desværre ikke rent pap."),
     # --- storskrald ---
-    ("storskrald", "Meget storskrald kan skilles ad og genbruges - møbler, metal og træ."),
-    ("storskrald", "Møbler, der stadig duer, kan doneres i stedet for at smides ud."),
-    ("storskrald", "Jerntronen er nok historiens mest upraktiske møbel til storskrald."),
     ("storskrald", "Carrie elskede en oprydning i skabet - storskrald er samme følelse."),
     ("storskrald", "Ross' berygtede sofa fra Friends ville være endt som storskrald."),
     # --- farligt affald ---
-    ("farligt", "Batterier, maling, kemikalier og elektronik er farligt affald."),
-    ("farligt", "Batterier hører aldrig i skraldespanden - de skal afleveres for sig."),
-    ("farligt", "Genbrugspladsen tager imod farligt affald gratis."),
-    ("farligt", "Med stor kraft følger stort ansvar - også for gamle batterier."),
     ("farligt", "Snapes eliksirer skulle behandles varsomt - lige som vores kemi."),
 ]
 
