@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+#
+# WHY THIS EXISTS
+# ---------------
+# Backstop for the deterministic .githooks/pre-commit scan: an AI pass over
+# everything about to be PUSHED, to catch PII/secrets a regex cannot classify -
+# a real name + home address pasted into a doc, a credential described in prose,
+# or a bare 8-digit Danish phone number with no +45 prefix. It runs once per
+# push (not per commit), so the AI latency stays off the hot commit path.
+#
+# Uses the `claude` CLI in headless (-p) mode. FAILS OPEN (warns, allows the
+# push) if claude is unavailable or errors - the pre-commit gitleaks scan is the
+# hard guarantee; this layer is a judgment backstop, not a gate to get stuck on.
+#
+# Enable (one-time, per clone):  git config core.hooksPath .githooks
+# Override:  git push --no-verify
+#
+set -uo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+zero="0000000000000000000000000000000000000000"
+empty_tree="$(git hash-object -t tree /dev/null)"
+
+# Build the diff for every ref being pushed (pre-push feeds refs on stdin).
+diff=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue   # branch deletion: nothing to scan
+  if [ "$remote_sha" = "$zero" ]; then
+    diff="$diff$(git diff --no-color "$empty_tree" "$local_sha" 2>/dev/null)"
+  else
+    diff="$diff$(git diff --no-color "$remote_sha..$local_sha" 2>/dev/null)"
+  fi
+done
+
+# Fallback when run manually / stdin was empty: compare against upstream.
+if [ -z "${diff// }" ]; then
+  diff="$(git diff --no-color @{u}..HEAD 2>/dev/null || true)"
+fi
+[ -z "${diff// }" ] && exit 0   # nothing to scan
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "WARNING (.githooks/pre-push): claude CLI not found - skipping AI PII check." >&2
+  echo "  The pre-commit gitleaks scan still applies. Install Claude Code to enable this layer." >&2
+  exit 0
+fi
+
+prompt="You are a secret/PII reviewer for a PUBLIC git repository. Examine the git diff below (added lines start with +). Flag ONLY real, sensitive values that must never be public: API tokens / keys / credentials, personal phone numbers (including Danish 8-digit numbers with or without a +45 prefix), a home/street address tied to a person, or a Perfect Waste address id. IGNORE obvious placeholders and examples (e.g. 4512345678, ADDRESS_ID=12345, MUNICIPALITY=101, token=x, foo/bar/xxx). Respond with ONE line of JSON and nothing else: {\"found\": true|false, \"items\": [\"short description incl. file if known\"], \"reasoning\": \"one sentence\"}
+
+DIFF:
+$diff"
+
+verdict="$(printf '%s' "$prompt" | claude -p 2>/dev/null || true)"
+
+if [ -z "${verdict// }" ]; then
+  echo "WARNING (.githooks/pre-push): AI check returned nothing - allowing push (deterministic scan still applied at commit)." >&2
+  exit 0
+fi
+
+echo "AI PII check (.githooks/pre-push) verdict: $verdict" >&2
+
+if printf '%s' "$verdict" | grep -qiE '"found"[[:space:]]*:[[:space:]]*true'; then
+  echo "" >&2
+  echo "BLOCKED by .githooks/pre-push: the AI flagged possible PII/secret(s) - see the verdict above." >&2
+  echo "Review the diff. If it is a false positive, override: git push --no-verify" >&2
+  echo "" >&2
+  exit 1
+fi
+
+exit 0

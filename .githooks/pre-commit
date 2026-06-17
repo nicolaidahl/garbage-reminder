@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# WHY THIS EXISTS
+# ---------------
+# garbage-reminder handles three things that must NEVER reach a committed
+# (tracked) file: the GatewayAPI token, recipient phone numbers, and the
+# Perfect Waste address id. They live only in the gitignored .env and the cloud
+# routine config. .gitignore keeps the .env file itself out, but the residual
+# risk is pasting a real value into a TRACKED file - a README example, a doc, or
+# code. This hook blocks that at commit time with a fast, offline scan.
+#
+# It is the hard guarantee; .githooks/pre-push adds a slower AI judgment pass.
+# Rules live in this file + .gitleaks.toml.
+#
+# Enable (one-time, per clone):  git config core.hooksPath .githooks
+# Override (ONLY if you are sure it is a false positive):  git commit --no-verify
+#
+set -uo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+fail() {
+  echo "" >&2
+  echo "BLOCKED by .githooks/pre-commit: $1" >&2
+  echo "Override only if you are certain this is a false positive: git commit --no-verify" >&2
+  echo "" >&2
+  exit 1
+}
+
+# 1. Never commit an env file, even though .gitignore should already stop it.
+env_staged="$(git diff --cached --name-only | grep -E '(^|/)\.env$|\.env$' || true)"
+if [ -n "$env_staged" ]; then
+  fail "an env file is staged ($env_staged) - secrets must stay local. Unstage it: git restore --staged $env_staged"
+fi
+
+# 2. Deterministic secret/PII scan of the staged diff via gitleaks.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --staged --no-banner --redact -c .gitleaks.toml
+  code=$?
+  if [ "$code" -eq 1 ]; then
+    fail "gitleaks matched a secret/PII rule in the staged changes (see the finding above; the matched value is redacted)."
+  elif [ "$code" -gt 1 ]; then
+    echo "WARNING (.githooks/pre-commit): gitleaks errored (exit $code); NOT blocking." >&2
+    echo "  Re-run for detail: gitleaks git --staged -v -c .gitleaks.toml" >&2
+  fi
+else
+  echo "WARNING (.githooks/pre-commit): gitleaks is not installed, so only the env-file" >&2
+  echo "  check ran. Install it for full coverage: brew install gitleaks" >&2
+fi
+
+exit 0

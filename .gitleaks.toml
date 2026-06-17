@@ -1,0 +1,34 @@
+# Config for the deterministic secret/PII scan run by .githooks/pre-commit.
+# See that hook for WHY this exists. This extends gitleaks' built-in secret
+# rules and adds the project-specific PII shapes that matter here: recipient
+# phone numbers and the GatewayAPI REST token. The token, numbers, and the
+# Perfect Waste address id must never reach a tracked file (they live only in
+# the gitignored .env and the cloud routine config).
+
+title = "garbage-reminder secret & PII rules"
+
+[extend]
+# Inherit gitleaks' maintained ruleset (AWS keys, generic high-entropy API
+# keys, private keys, etc.) and add the rules below on top.
+useDefault = true
+
+[[rules]]
+id = "dk-mobile-with-cc"
+description = "Danish mobile number with a +45/45 country code (recipient PII). Bare 8-digit numbers are left to the AI pre-push layer to avoid date/id false positives."
+regex = '''(?:\+?45)[2-9]\d{7}'''
+tags = ["pii", "phone"]
+
+[[rules]]
+id = "gatewayapi-token"
+description = "Long high-entropy token such as a GatewayAPI REST token"
+regex = '''[A-Za-z0-9_\-]{50,}'''
+entropy = 3.5
+tags = ["secret", "token"]
+
+[allowlist]
+description = "Known-safe placeholders used in docs and examples (not real values)"
+regexes = [
+  '''4512345678''',        # README/MAINTENANCE example recipient
+  '''ADDRESS_ID=12345''',  # doc placeholder address id
+  '''MUNICIPALITY=101''',  # doc placeholder municipality id
+]
