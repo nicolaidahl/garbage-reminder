@@ -15,13 +15,6 @@ There is **no server**. The reminder is a scheduled
 [Claude Code cloud routine](https://claude.ai/code/routines) that runs on
 Anthropic's cloud once a day. Nothing runs on a laptop.
 
-> **STATUS (cutover in progress, June 2026).** This doc describes the
-> **repo-clone** architecture, which is the committed design. Until the repo is
-> flipped public and the routine prompt is switched to `git clone` + verified,
-> the *live* routine still runs the previous **setup-script blob** (a base64 copy
-> of `send_reminder.py` decoded by the environment's setup script) - which is
-> verified working. Delete this note once the clone cutover is verified.
-
 ```
 cron (daily)  ─▶  cloud agent  ─▶  git clone this repo  ─▶  runs send_reminder.py
                                                                    │
