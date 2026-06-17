@@ -4,7 +4,9 @@ A tiny daily reminder that texts us the evening before a garbage pickup.
 
 It reads the collection calendar for our address from Perfect Waste's open
 Cloud Function, checks whether anything is collected **tomorrow**, and if so
-sends an SMS via [GatewayAPI](https://gatewayapi.com) to each recipient.
+sends an SMS via [GatewayAPI](https://gatewayapi.com) to each recipient. When
+several fractions are collected the same day, they are all listed together in one
+SMS (e.g. `HAVEAFFALD, STORSKRALD`).
 
 Runs as a scheduled [Claude Code cloud routine](https://claude.ai/code/routines)
 once a day — no laptop or server required.
@@ -51,7 +53,15 @@ All config is via environment variables — **no secrets are committed**:
 
 ## Run locally
 
-Dry run (no SMS sent, no token needed beyond the required-var check):
+The required vars are kept in a **gitignored `.env`** (never committed). Load it
+and run:
+
+```bash
+set -a; source .env; set +a
+DRY_RUN=1 python3 send_reminder.py        # dry run: prints the SMS, sends nothing
+```
+
+Or pass them inline instead of using `.env`:
 
 ```bash
 GATEWAYAPI_TOKEN=x RECIPIENTS=4512345678 \

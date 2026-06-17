@@ -98,12 +98,15 @@ conversation — don't, unless explicitly asked.
    <cozy opening line>
 
    I morgen, <ugedag d. D. maaned>, henter de:
-   <BIN TYPE IN CAPS>
+   <BIN TYPE(S) IN CAPS>
    ```
 
    The bin type MUST always be explicit and easy to skim. This was the user's
    single biggest complaint about earlier versions ("I don't get which type of
-   garbage").
+   garbage"). When **several fractions are collected the same day**, they are all
+   listed together, comma-separated and in caps (e.g. `HAVEAFFALD, STORSKRALD`) —
+   never just one of them. The opening line, by contrast, just spotlights **one
+   of the collected bins picked at random** (see "Topic relevance" below).
 
 5. **Encoding: GSM-7 only — critical.** GatewayAPI sends in the GSM-7 alphabet
    and **silently replaces anything outside it with `?`**. Confirmed empirically
@@ -113,10 +116,14 @@ conversation — don't, unless explicitly asked.
      ellipsis glyph (`…`), curly quotes. Use a plain `-`, three periods `...`,
      and straight quotes.
 
-6. **Fraction filter, fail-open.** Send only when *tomorrow* includes **pap,
-   storskrald, farligt affald, or haveaffald**. Ignore Mad/Rest, glas, papir,
-   plast, metal, mad-/drikkekartoner, and the 4-kammer combo. Any **unknown**
-   fraction name → send anyway ("if in doubt, send"). See `IGNORED_FRACTIONS`.
+6. **Fraction filter, fail-open (with one hard exception).** Send only when
+   *tomorrow* includes **pap, storskrald, or haveaffald**. Ignore Mad/Rest, glas,
+   papir, plast, metal, mad-/drikkekartoner, and the 4-kammer combo. Any
+   **unknown** fraction name → send anyway ("if in doubt, send"). See
+   `IGNORED_FRACTIONS`. **Farligt affald is the exception to fail-open: there is
+   no farligt container at this address, so it is ALWAYS dropped** (never sent,
+   never listed in the bin block) — `relevant_fractions` removes anything
+   `topic_for` classifies as `farligt`, i.e. any name containing "farlig".
 
 ---
 
@@ -127,13 +134,23 @@ The opening lines live in `send_reminder.py` as `GARBAGE_LINES`, a list of
 lines are cozy/factual, not jokes — and was later a flat list before topics were
 added.) `ALL_LINES` is a flat list of just the texts, for checks.
 
-**Topic relevance.** Each line is tagged either `"general"` (fits any bin) or one
-of the four bins: `"haveaffald"`, `"pap"`, `"storskrald"`, `"farligt"`.
-`build_message` picks at random from the **general lines plus the lines tagged
-for the bin(s) actually being collected** — so the opening line is always
-relevant (no pap fact on a haveaffald day). `topic_for(fraction_name)` maps a raw
-Perfect Waste fraction name to a topic by keyword. Bins with few or no specific
-lines simply fall back to the general pool.
+**Topic relevance.** Each line is tagged `"general"` (fits any bin) or one of the
+bins: `"haveaffald"`, `"pap"`, `"storskrald"`. `build_message` picks **one of the
+collected fractions at random**, then draws the opening line from the `general`
+lines **plus** that one bin's lines — so the line always fits something that is
+actually collected (no pap fact on a haveaffald-only day). On a day with several
+fractions it simply spotlights one of them at random; the bin block below still
+lists them all.
+
+`topic_for(fraction_name)` maps a raw Perfect Waste fraction name to a bin topic
+by keyword. Bins with few or no specific lines simply fall back to the general
+pool. If no eligible line fits the one-SMS budget, `build_message` **omits the
+opening line** rather than risk truncating the bin block (see the length section).
+
+There is **no `farligt` topic**: farligt affald is never collected at this address
+(it is dropped in `relevant_fractions` — see locked decision 6), so a farligt line
+could never be shown. The earlier "combo / prefer-neutral on multi-type days"
+approach was dropped in favour of the simpler random-bin pick above.
 
 ### Curation rules (agreed with the user)
 
@@ -146,10 +163,15 @@ from the user's feedback in the review session:
    generic cozy observations, sorting tips/advice, aphorisms, proverbs, and
    "as they say…" quote lines entirely. A line that is neither a fun fact nor a
    named-character reference does not belong, however pleasant it reads.
-2. **No tacked-on cutesy kicker.** A clean fact or observation, then stop. Do
-   NOT append an editorialising second sentence after a period
-   (killed examples: `". Haven knokler."`, `". Som en ren tavle."`,
-   `". Fint at taenke paa."`). The user finds these irritating.
+2. **No tacked-on cutesy kicker, and go easy on dashes.** A clean fact or
+   observation, then stop. Do NOT append an editorialising second sentence after
+   a period (killed examples: `". Haven knokler."`, `". Som en ren tavle."`,
+   `". Fint at taenke paa."`). The user finds these irritating. **Avoid the
+   ` - ` dash as a clause connector** — the pool over-used it (June 2026 the user
+   asked for every line to be rewritten dash-free); join clauses with a comma or
+   `og` / `så` / `fordi` and keep it one clean sentence. (Hyphens are also barred
+   for the cosmetic reason that they read as filler here — even numeric ranges
+   were spelled out, e.g. "et til to år", not "1-2 år".)
 3. **Cut anything whose comparison does not land** or needs explaining
    (killed examples: "vejer som en malkeko" — nobody knows what a cow weighs;
    "storskrald er som et loppemarked" — storskrald just gets hauled away).
@@ -174,10 +196,14 @@ from the user's feedback in the review session:
    The named-character references currently in the pool (each ties tightly to
    its bin): Carrie's closet cleanout → storskrald; Ross' sofa → storskrald;
    Tony Stark scrapping old suits → storskrald; Ted Mosby the keeper-of-
-   everything → storskrald; Sam Gamgee the gardener → haveaffald; Groot is a
-   tree → haveaffald; Carmy's fresh herbs → haveaffald; Neville Longbottom the
-   Herbology master → haveaffald; Snape's potions → chemicals/farligt; Tony
-   Stark's reactor → batteries/farligt. The watched-together show list is fixed
+   everything → storskrald; Richie gutting the restaurant kitchen → storskrald;
+   Marshall Eriksson's old chair → storskrald; Monica Geller the tidier →
+   storskrald; Sam Gamgee the gardener → haveaffald; Groot is a tree →
+   haveaffald; Carmy's fresh herbs → haveaffald; Neville Longbottom the Herbology
+   master → haveaffald; Pomona Sprout tending the greenhouses → haveaffald.
+   (Farligt affald is no longer collected here, so its old character lines —
+   Snape, Tony Stark's reactor, Bruce Banner, Dr. Robby — were removed.)
+   The watched-together show list is fixed
    (HIMYM, The Bear, Sex and the City, Friends, Game of Thrones, all Marvel
    films, Lord of the Rings, Harry Potter, Suits, The Pitt, House of the Dragon,
    The Mandalorian, Beef, Money Heist). Proverbs/aphorisms/catchphrases are out —
@@ -193,8 +219,8 @@ from the user's feedback in the review session:
 7. **GSM-7 safe** (see locked decision 5) **and short enough for one SMS**
    (see the next section). Run the GSM-7 check below after any edit.
 
-**Line count (currently 18 lines: general 2, haveaffald 6, pap 3, storskrald 4,
-farligt 3).** This used to be a hard operational constraint - the script shipped
+**Line count (currently 35 lines: general 6, haveaffald 12, pap 9, storskrald 8).**
+This used to be a hard operational constraint - the script shipped
 as a base64 blob an LLM had to reproduce verbatim, so a bigger script meant a
 likelier corrupt deploy. **That constraint is GONE** now that the cloud clones
 the repo instead: the script can be any size. Keeping it focused is now purely an
@@ -214,7 +240,9 @@ character, nothing else) plus all the rules above.
 A single GSM-7 SMS holds **160 characters**, and GatewayAPI **truncates** longer
 messages rather than splitting them — which would cut the **bin type** (the most
 important part) off the end. To make that impossible, `build_message` only picks
-an opening line that keeps the whole message within one segment:
+an opening line that keeps the whole message within one segment, and if **no**
+eligible line fits the budget it **drops the opening line entirely** and sends
+just the date + bin block — the bin type is never sacrificed to a cozy line:
 
 - `SMS_SEGMENT_LIMIT = 160` — one GSM-7 segment.
 - `GATEWAY_PREFIX_RESERVE = 0` — the `THIS IS A TEST SMS: ` prefix GatewayAPI used
@@ -222,11 +250,14 @@ an opening line that keeps the whole message within one segment:
   and the full 160 chars are usable. If the prefix ever returns, set this to 20.
 
 With the reserve at 0, the worst-case usable budget for an opening line is
-`160 - len(tail)`, where the longest tail (e.g. `torsdag d. 24. september` +
-`FARLIGT AFFALD`) is ~63 chars — so ~97 chars per line. All current lines fit.
+`160 - len(tail)`. The longest tail is now a multi-fraction day with a long date
+(e.g. `torsdag d. 24. september` + `HAVEAFFALD, STORSKRALD, PAP`) at ~76 chars —
+so ~84 chars per line on the very heaviest days. All current lines (max 90 chars)
+fit comfortably on single- and two-fraction days; on a rare all-three-fraction
+day a 90-char line is simply skipped in favour of a shorter one.
 
 If you add a longer line, it just won't be picked on the longest days — keep new
-lines under ~97 characters if you want them in heavy rotation on every date.
+lines under ~84 characters if you want them in rotation even on an all-three day.
 
 ---
 
@@ -244,14 +275,20 @@ character reference (curation rule 1); there is no separate archive to draw from
 
 ### 2. Preview the rendered message
 
+The full set of vars (token, recipients, `ADDRESS_ID`, `MUNICIPALITY`, `SENDER`)
+lives in a **gitignored local `.env`** in the repo root. Load it and run:
+
 ```bash
-GATEWAYAPI_TOKEN=x RECIPIENTS=4512345678 ADDRESS_ID=12345 MUNICIPALITY=101 DRY_RUN=1 python3 send_reminder.py
+set -a; source .env; set +a
+DRY_RUN=1 python3 send_reminder.py          # preview; add RECIPIENTS=45... to retarget
 ```
 
-`ADDRESS_ID`/`MUNICIPALITY` are required and live only in the routine config
-(never in this repo), so pass your real values locally - the `12345`/`101` above
-are placeholders. On a no-pickup day it prints `Nothing relevant tomorrow …` and
-sends nothing - that is success, not an error. To preview a specific line, import
+`.env` is the single local source of truth for these values and is **never
+committed** (see `.gitignore`: `.env` / `*.env`). If you don't use `.env`, pass
+the four required vars inline instead (`GATEWAYAPI_TOKEN=... RECIPIENTS=...
+ADDRESS_ID=... MUNICIPALITY=... DRY_RUN=1 python3 send_reminder.py`). On a
+no-pickup day it prints `Nothing relevant tomorrow …` and sends nothing - that is
+success, not an error. To preview a specific line, import
 `build_message(date, [fraction], intro="your line")`.
 
 ### 3. Check GSM-7 safety
@@ -292,10 +329,14 @@ manual run on a pickup day - it sends a real SMS to both recipients.
 
 ### Routine config (where the secrets/PII live)
 
-The repo carries none of these; they live only in the routine prompt's run
-command (`RemoteTrigger action:get` to see it): `GATEWAYAPI_TOKEN` (or
-`GARBAGE_SMS_TOKEN`), `RECIPIENTS`, `ADDRESS_ID`, `MUNICIPALITY`, `SENDER`. Change
-a recipient or the address by editing that command, not the repo.
+The **committed** repo carries none of these. They live in two places, both
+outside version control: the cloud routine prompt's run command
+(`RemoteTrigger action:get` to see it) and a **gitignored local `.env`** in the
+repo root (the single local source of truth - see deploy step 2). Both hold the
+same keys: `GATEWAYAPI_TOKEN`, `RECIPIENTS`, `ADDRESS_ID`, `MUNICIPALITY`,
+`SENDER`. To change a recipient or the address locally, edit `.env`; for the
+cloud, edit the routine run command (and keep `.env` in sync if you want local
+runs to match). `.env` is never committed (`.gitignore`: `.env` / `*.env`).
 
 ---
 
@@ -340,3 +381,31 @@ a recipient or the address by editing that command, not the repo.
   sending spam/phishing as "Skrald"), not the small balance. If it is ever
   exposed, **rotate it** in the GatewayAPI dashboard and update the routine
   config's run command with the new value (see "Routine config" above).
+
+### Commit/push guard (`.githooks/`)
+
+Two committed git hooks stop the token, recipient phone numbers, or the address
+id from ever reaching a tracked file. They live in `.githooks/` (committed, so
+they are shared) and are enabled per clone with **one** command:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+- **`pre-commit` (fast, offline, the hard guarantee).** Blocks committing any
+  `.env` file and runs **gitleaks** (`.gitleaks.toml`) over the staged diff -
+  gitleaks' built-in secret rules plus project rules for a `+45` Danish mobile
+  number and a long high-entropy token. On a hit it names the rule and how to
+  override. Install once: `brew install gitleaks` (without it, only the env-file
+  check runs and the hook warns).
+- **`pre-push` (AI judgment, runs once per push).** Sends the push diff to the
+  `claude` CLI (`claude -p`) to catch leaks a regex misses - a real name+address
+  in prose, a bare 8-digit number with no `+45`. **Fails open** (warns, allows
+  the push) if `claude` is missing, so a push never gets stuck on the AI layer;
+  the pre-commit gitleaks scan remains the guarantee.
+- **Override** a false positive with `git commit --no-verify` /
+  `git push --no-verify`.
+- **Bypassable by design:** local hooks can be skipped, so they are a *safety
+  net for honest mistakes*, not enforcement. For a hard gate, enable GitHub's
+  free secret-scanning / push protection (this repo is public) or add a CI
+  gitleaks job - neither is wired up yet.
