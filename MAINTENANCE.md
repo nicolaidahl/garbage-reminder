@@ -140,8 +140,12 @@ lines simply fall back to the general pool.
 When adding, editing, or pruning lines, apply these — they were derived directly
 from the user's feedback in the review session:
 
-1. **Facts and concrete observations over jokes / quotes / proverbs.** Drop
-   aphorisms and "as they say…" quote lines entirely.
+1. **Every line must be EITHER a verified fun fact OR a named-character
+   reference — nothing else.** This is the hard gate the user set (June 2026):
+   the pool was consolidated down to exactly these two kinds of line. Drop
+   generic cozy observations, sorting tips/advice, aphorisms, proverbs, and
+   "as they say…" quote lines entirely. A line that is neither a fun fact nor a
+   named-character reference does not belong, however pleasant it reads.
 2. **No tacked-on cutesy kicker.** A clean fact or observation, then stop. Do
    NOT append an editorialising second sentence after a period
    (killed examples: `". Haven knokler."`, `". Som en ren tavle."`,
@@ -157,23 +161,29 @@ from the user's feedback in the review session:
      (e.g. Money Heist → pap, Suits paperwork → pap, Mandalorian "travels light"
      → storskrald, Frodo leaving the Shire → storskrald). If the connection
      needs a paragraph to justify, cut it. **Cardboard (pap) has no good
-     character tie — pap lines are ALL genuine advice/cozy, zero references.**
+     character tie — pap lines are ALL fun facts, zero references.**
+   - **A reference must name a CHARACTER — not a prop, place, or catchphrase.**
+     Object/phrase references that name no person were cut in the June 2026
+     consolidation (Jerntronen/Iron Throne is a chair; "Winter is coming",
+     "with great power…" and Wildfire are catchphrases/things, not characters).
+     If you can't point to the named person, it's not a character reference.
    - **Name the character; never "X i [Show]".** Write "Sam Gamgee var
      gartner…", not "Carmy i The Bear…" or "Neville i Harry Potter…". Lead with
      the name and let the reference itself make it clear who they are.
 
-   Confirmed-good references (all tie tightly to their bin): Iron Throne →
-   storskrald (bulky furniture); Carrie's closet cleanout → storskrald; Ross'
-   sofa → storskrald; Tony Stark scrapping old suits → storskrald; Sam Gamgee
-   the gardener → haveaffald; Groot is a tree → haveaffald; Carmy's fresh herbs
-   → haveaffald; "with great power…" → batteries/farligt; Wildfire → chemicals/
-   farligt; Snape's potions → chemicals/farligt; "Winter is coming" reliability
-   → general. The watched-together show list is fixed (HIMYM, The Bear, Sex and
-   the City, Friends, Game of Thrones, all Marvel films, Lord of the Rings,
-   Harry Potter, Suits, The Pitt, House of the Dragon, The Mandalorian, Beef,
-   Money Heist). Proverbs/aphorisms are still out — a warm reference is not the
-   same as a quote line. Because a line is tagged to a bin it now only ever
-   shows on that bin, so a bin-specific reference can never land on a mismatch.
+   The named-character references currently in the pool (each ties tightly to
+   its bin): Carrie's closet cleanout → storskrald; Ross' sofa → storskrald;
+   Tony Stark scrapping old suits → storskrald; Ted Mosby the keeper-of-
+   everything → storskrald; Sam Gamgee the gardener → haveaffald; Groot is a
+   tree → haveaffald; Carmy's fresh herbs → haveaffald; Neville Longbottom the
+   Herbology master → haveaffald; Snape's potions → chemicals/farligt; Tony
+   Stark's reactor → batteries/farligt. The watched-together show list is fixed
+   (HIMYM, The Bear, Sex and the City, Friends, Game of Thrones, all Marvel
+   films, Lord of the Rings, Harry Potter, Suits, The Pitt, House of the Dragon,
+   The Mandalorian, Beef, Money Heist). Proverbs/aphorisms/catchphrases are out —
+   a warm reference is a NAMED character, not a quote line. Because a line is
+   tagged to a bin it only ever shows on that bin, so a bin-specific reference
+   can never land on a mismatch.
 5. **The opening line must NEVER nag about putting the bins out.** No raised
    finger / "husk at stille skraldet ud". The reminder ("husk") info lives
    **only** in the part-2 `I morgen … henter de: <TYPE>` block.
@@ -183,19 +193,21 @@ from the user's feedback in the review session:
 7. **GSM-7 safe** (see locked decision 5) **and short enough for one SMS**
    (see the next section). Run the GSM-7 check below after any edit.
 
-**Line count (currently 5 per bin + 5 general = 25 lines).** This used to be a
-hard operational constraint - the script shipped as a base64 blob an LLM had to
-reproduce verbatim, so a bigger script meant a likelier corrupt deploy. **That
-constraint is GONE** now that the cloud clones the repo instead: the script can
-be any size. Keeping it focused is now purely an editorial choice - quality beats
-count, and a weak line is worse than a missing one.
+**Line count (currently 18 lines: general 2, haveaffald 6, pap 3, storskrald 4,
+farligt 3).** This used to be a hard operational constraint - the script shipped
+as a base64 blob an LLM had to reproduce verbatim, so a bigger script meant a
+likelier corrupt deploy. **That constraint is GONE** now that the cloud clones
+the repo instead: the script can be any size. Keeping it focused is now purely an
+editorial choice - quality beats count, and a weak line is worse than a missing
+one.
 
-A richer pool of ~236 vetted lines (the June 2026 expansion: general 32,
-haveaffald 52, pap 50, storskrald 52, farligt 50) lives in
-[`opening_line_archive.py`](opening_line_archive.py) - draw replacement or extra
-lines from there when curating. It is a reference file only (not imported or
-run). Apply all the curation rules above to anything you promote into the active
-`GARBAGE_LINES`.
+**`GARBAGE_LINES` in `send_reminder.py` is now the single source of truth for the
+lines.** A ~236-line reference pool (`opening_line_archive.py`) once held extra
+candidates, but in the June 2026 consolidation everything that was not a fun fact
+or a named-character reference was dropped and the archive file was deleted - so
+there is no separate pool to promote from anymore. To add lines, write new ones
+straight into `GARBAGE_LINES` and apply curation rule 1 (fun fact OR named
+character, nothing else) plus all the rules above.
 
 ### SMS length / one-segment guarantee
 
@@ -226,8 +238,9 @@ no paste, no sha256 dance.
 
 ### 1. Edit the script
 
-Edit `GARBAGE_LINES` (or any logic) in `send_reminder.py`. Pull extra lines from
-[`opening_line_archive.py`](opening_line_archive.py) if you want richer rotation.
+Edit `GARBAGE_LINES` (or any logic) in `send_reminder.py` — it is the single
+source of truth for the lines. Any new line must be a fun fact or a named-
+character reference (curation rule 1); there is no separate archive to draw from.
 
 ### 2. Preview the rendered message
 

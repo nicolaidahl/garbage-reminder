@@ -233,29 +233,39 @@ def main():
     print(f"Sent. GatewayAPI response: {result}")
 
 
-# Cozy, family-friendly opening lines as (topic, text) pairs - verified Danish
-# affald facts and named TV-character references, NOT jokes. build_message picks one at random
-# from the "general" lines plus the lines tagged for the bin(s) collected.
-# Topics: "general" (any bin) or a bin: "haveaffald", "pap", "storskrald",
-# "farligt". Full curation rules live in MAINTENANCE.md; a larger pool of vetted
-# lines to draw from lives in opening_line_archive.py. Quality over quantity -
-# a weak line is worse than a missing one. GSM-7 safe only (no emoji/em-dash).
+# Family-friendly opening lines as (topic, text) pairs. Each line is EITHER a
+# verified Danish affald FUN FACT or a NAMED TV/film-character reference with a
+# real tie to the bin - never a joke, tip, or generic cozy observation.
+# build_message picks one at random from the "general" lines plus the lines
+# tagged for the bin(s) collected. Topics: "general" (any bin) or a bin:
+# "haveaffald", "pap", "storskrald", "farligt". This list is the SINGLE SOURCE
+# OF TRUTH for the lines (the old opening_line_archive.py reference pool was
+# removed). Full curation rules live in MAINTENANCE.md. GSM-7 safe only (no
+# emoji/em-dash); facts must be verified.
 GARBAGE_LINES = [
-    # --- general (fits any bin) ---
+    # --- general (fits any bin): fun facts ---
     ("general", "Lille fakta: hver dansker smider omkring 750 kg affald ud om året."),
     ("general", "Dagrenovationen i Danmark er faldet 37% siden 2011, fordi vi sorterer mere."),
-    # --- haveaffald ---
+    # --- haveaffald: fun facts + named characters ---
     ("haveaffald", "Vidste du det? Vi sorterer i snit 118 kg haveaffald pr. person om året."),
     ("haveaffald", "Det tager typisk 1-2 år for en bunke haveaffald at blive til muld."),
     ("haveaffald", "Sam Gamgee var gartner - han ville elske vores haveaffald."),
     ("haveaffald", "Groot er selv et træ - han ville føle sig hjemme i haveaffaldet."),
-    # --- pap (fun facts only - no character ties land for cardboard) ---
+    ("haveaffald", "Carmy ved, at de bedste krydderurter starter i havens jord."),
+    ("haveaffald", "Neville Longbottom var bedst til urtologi - han ville elske havearbejdet."),
+    # --- pap: fun facts only (no character tie lands for cardboard) ---
     ("pap", "Lille detalje: pap og papir fylder omkring 34 kg pr. dansker om året."),
-    # --- storskrald ---
+    ("pap", "Papfibre kan genbruges mange gange, før de bliver for korte."),
+    ("pap", "Æggebakker af pap er allerede genbrugt mindst en gang."),
+    # --- storskrald: named characters ---
     ("storskrald", "Carrie elskede en oprydning i skabet - storskrald er samme følelse."),
     ("storskrald", "Ross' berygtede sofa fra Friends ville være endt som storskrald."),
-    # --- farligt affald ---
+    ("storskrald", "Tony Stark skrottede gamle dragter for at gøre plads - ren storskrald."),
+    ("storskrald", "Ted Mosby gemte på alt - en storskraldsdag ville gøre ham godt."),
+    # --- farligt affald: fun fact + named characters ---
+    ("farligt", "Sparepærer indeholder en smule kviksølv og hører til farligt affald."),
     ("farligt", "Snapes eliksirer skulle behandles varsomt - lige som vores kemi."),
+    ("farligt", "Tony Starks reaktor var ren energi - vores batterier afleveres bare for sig."),
 ]
 
 # Flat list of just the line texts, for length / GSM-7 checks.
