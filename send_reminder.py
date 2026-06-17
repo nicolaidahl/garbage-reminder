@@ -3,9 +3,10 @@
 
 Fetches the Perfect Waste collection calendar (open, unauthenticated), checks
 whether anything *we care about* is collected tomorrow, and if so sends one SMS
-via GatewayAPI to each recipient. We care about pap, storskrald, farligt affald
-and haveaffald; we ignore Mad/Rest, glas, papir, plast, metal, kartoner and the
-4-kammer container. Filter fails OPEN: an unknown fraction name -> send anyway.
+via GatewayAPI to each recipient. We care about pap, storskrald and haveaffald;
+we ignore farligt affald (no container at this address - never collected here),
+plus Mad/Rest, glas, papir, plast, metal, kartoner and the 4-kammer container.
+Filter fails OPEN for unknown names (send anyway), but farligt is always dropped.
 
 Message = a cozy opening line, then a skimmable date + bin block:
 
@@ -52,7 +53,9 @@ DA_MONTHS = [
 ]
 
 # Fractions we deliberately IGNORE (normalized: lowercased, stripped). Anything
-# NOT in this set counts as relevant, so unknown/new names trigger a send.
+# NOT in this set counts as relevant, so unknown/new names trigger a send. Farligt
+# affald is dropped separately (by keyword) in relevant_fractions, not listed here,
+# since its exact Perfect Waste name is unknown - see that function.
 IGNORED_FRACTIONS = {
     "mad/rest", "mad-/rest", "mad og rest", "madaffald", "mad", "rest",
     "restaffald", "glas", "papir", "plast", "metal", "glas/metal",
@@ -99,7 +102,12 @@ def collections_for(target, collections):
 
 
 def relevant_fractions(entries):
-    """Fraction names for `entries` that we actually care about (fail open)."""
+    """Fraction names for `entries` that we actually care about.
+
+    Fails OPEN (an unknown name is kept, so we send rather than miss a pickup),
+    with one hard exception: farligt affald is always dropped - there is no
+    farligt container at this address and it is never collected here, so it must
+    never trigger a send nor appear in the bin block."""
     names = []
     for entry in entries:
         for fr in entry.get("fractions", []):
@@ -107,6 +115,8 @@ def relevant_fractions(entries):
             if not name:
                 continue
             if name.lower() in IGNORED_FRACTIONS:
+                continue
+            if topic_for(name) == "farligt":
                 continue
             if name not in names:
                 names.append(name)
@@ -151,10 +161,13 @@ def build_message(target, fractions, intro=None):
     """A cozy line, then a plain, skimmable date + bin-type block.
 
     The opening line must be RELEVANT to what is collected: when `intro` is None
-    we pick at random from the "general" (bin-agnostic) lines plus any lines
-    tagged for the bin(s) actually being collected - never, say, a pap fact on a
-    haveaffald day. We also only consider lines short enough to keep the whole
-    message in one SMS segment (so the bin type is never truncated).
+    we pick ONE of the collected fractions at random and draw the line from the
+    "general" (bin-agnostic) lines plus that bin's lines - never, say, a pap fact
+    on a haveaffald-only day. On a day with several fractions we simply spotlight
+    one of them at random; the block below still lists them all. We only consider
+    lines short enough to keep the whole message in one SMS segment, and if none
+    fit we OMIT the opening line rather than let GatewayAPI truncate the bin block
+    off the end (the bin type must never be lost).
 
     GSM-7 safe: no emoji, no em-dash. `intro` lets callers (e.g. the delivery
     test) pin a specific line, in which case the caller owns the length."""
@@ -162,14 +175,16 @@ def build_message(target, fractions, intro=None):
     tail = f"\n\nI morgen, {format_date(target)}, henter de:\n{fraction_text}"
     if intro is None:
         wanted = {"general"}
-        for fr in fractions:
-            topic = topic_for(fr)
-            if topic:
-                wanted.add(topic)
+        chosen = random.choice(fractions) if fractions else None
+        chosen_topic = topic_for(chosen) if chosen else None
+        if chosen_topic:
+            wanted.add(chosen_topic)
         pool = [text for topic, text in GARBAGE_LINES if topic in wanted]
         budget = SMS_SEGMENT_LIMIT - GATEWAY_PREFIX_RESERVE - len(tail)
         eligible = [text for text in pool if len(text) <= budget]
-        intro = random.choice(eligible or [min(pool, key=len)])
+        if not eligible:
+            return tail.lstrip("\n")
+        intro = random.choice(eligible)
     return f"{intro}{tail}"
 
 
@@ -235,37 +250,55 @@ def main():
 
 # Family-friendly opening lines as (topic, text) pairs. Each line is EITHER a
 # verified Danish affald FUN FACT or a NAMED TV/film-character reference with a
-# real tie to the bin - never a joke, tip, or generic cozy observation.
-# build_message picks one at random from the "general" lines plus the lines
-# tagged for the bin(s) collected. Topics: "general" (any bin) or a bin:
-# "haveaffald", "pap", "storskrald", "farligt". This list is the SINGLE SOURCE
-# OF TRUTH for the lines (the old opening_line_archive.py reference pool was
-# removed). Full curation rules live in MAINTENANCE.md. GSM-7 safe only (no
-# emoji/em-dash); facts must be verified.
+# real tie to the bin - never a joke or nag. build_message picks ONE of the
+# collected fractions at random and draws the line from the "general"
+# (bin-agnostic) lines plus that bin's lines, so the line always fits what is
+# collected; on a multi-fraction day it just spotlights one bin at random.
+# Topics: "general" (any bin) or a bin: "haveaffald", "pap", "storskrald".
+# (Farligt affald is never collected at this address, so there is no farligt
+# topic.) This list is the SINGLE SOURCE OF TRUTH for the lines (the old
+# opening_line_archive.py reference pool was removed). Full curation rules live
+# in MAINTENANCE.md. GSM-7 safe only (no emoji/em-dash); facts must be verified.
 GARBAGE_LINES = [
     # --- general (fits any bin): fun facts ---
     ("general", "Lille fakta: hver dansker smider omkring 750 kg affald ud om året."),
     ("general", "Dagrenovationen i Danmark er faldet 37% siden 2011, fordi vi sorterer mere."),
+    ("general", "Vidste du det? Glas kan smeltes om og genbruges igen og igen uden at miste kvalitet."),
+    ("general", "Lille fakta: en aluminiumsdåse, der genbruges, sparer omkring 95% af energien til en ny."),
+    ("general", "Lille fakta: omkring 90% af de pantede flasker og dåser kommer retur i Danmark."),
+    ("general", "Lille fakta: at sortere madaffald fra bliver til både biogas og gødning til markerne."),
     # --- haveaffald: fun facts + named characters ---
     ("haveaffald", "Vidste du det? Vi sorterer i snit 118 kg haveaffald pr. person om året."),
-    ("haveaffald", "Det tager typisk 1-2 år for en bunke haveaffald at blive til muld."),
-    ("haveaffald", "Sam Gamgee var gartner - han ville elske vores haveaffald."),
-    ("haveaffald", "Groot er selv et træ - han ville føle sig hjemme i haveaffaldet."),
+    ("haveaffald", "Det tager typisk et til to år for en bunke haveaffald at blive til muld."),
+    ("haveaffald", "Sam Gamgee var gartner og ville elske vores haveaffald."),
+    ("haveaffald", "Groot er selv et træ og ville føle sig hjemme i haveaffaldet."),
     ("haveaffald", "Carmy ved, at de bedste krydderurter starter i havens jord."),
-    ("haveaffald", "Neville Longbottom var bedst til urtologi - han ville elske havearbejdet."),
+    ("haveaffald", "Neville Longbottom var bedst til urtologi og ville elske havearbejdet."),
+    ("haveaffald", "Pomona Sprout passede drivhusene og ville nikke til en god bunke haveaffald."),
+    ("haveaffald", "Vidste du det? Græs er bedst i et tyndt lag i kompostbunken, så det ikke mugner."),
+    ("haveaffald", "Lille fakta: en god kompost har brug for både grønt, brunt og lidt tålmodighed."),
+    ("haveaffald", "Vidste du det? Visne blade bliver til den fineste bladkompost på et år eller to."),
+    ("haveaffald", "Vidste du det? En kompostbunke kan blive over 60 grader varm, mens den arbejder."),
+    ("haveaffald", "Vidste du det? Græsafklip er omkring 80% vand og kan komposteres på stedet."),
     # --- pap: fun facts only (no character tie lands for cardboard) ---
     ("pap", "Lille detalje: pap og papir fylder omkring 34 kg pr. dansker om året."),
     ("pap", "Papfibre kan genbruges mange gange, før de bliver for korte."),
     ("pap", "Æggebakker af pap er allerede genbrugt mindst en gang."),
-    # --- storskrald: named characters ---
-    ("storskrald", "Carrie elskede en oprydning i skabet - storskrald er samme følelse."),
+    ("pap", "Lille fakta: pap skal være tørt og rent, ellers kan fibrene ikke genbruges."),
+    ("pap", "Lille fakta: når fibrene endelig bliver for korte, kan pappet brændes til energi."),
+    ("pap", "Lille fakta: at genbruge pap sparer både træer og en hel del vand og energi."),
+    ("pap", "Vidste du det? Toiletruller af pap er som regel allerede genbrugt mindst en gang."),
+    ("pap", "Lille fakta: flad pap fylder mindre, så der er plads til meget mere i samme spand."),
+    ("pap", "Vidste du det? Pap kan typisk genbruges fem til syv gange, før fibrene bliver for korte."),
+    # --- storskrald: named characters + fun fact ---
+    ("storskrald", "Carrie elskede en oprydning i skabet, præcis som en storskraldsdag."),
     ("storskrald", "Ross' berygtede sofa fra Friends ville være endt som storskrald."),
-    ("storskrald", "Tony Stark skrottede gamle dragter for at gøre plads - ren storskrald."),
-    ("storskrald", "Ted Mosby gemte på alt - en storskraldsdag ville gøre ham godt."),
-    # --- farligt affald: fun fact + named characters ---
-    ("farligt", "Sparepærer indeholder en smule kviksølv og hører til farligt affald."),
-    ("farligt", "Snapes eliksirer skulle behandles varsomt - lige som vores kemi."),
-    ("farligt", "Tony Starks reaktor var ren energi - vores batterier afleveres bare for sig."),
+    ("storskrald", "Tony Stark skrottede gamle dragter for at gøre plads, ligesom en storskraldsdag."),
+    ("storskrald", "Ted Mosby gemte på alt, så en storskraldsdag ville gøre ham godt."),
+    ("storskrald", "Richie rev hele restaurantkøkkenet ud, en oprydning helt i storskraldens ånd."),
+    ("storskrald", "Marshall Eriksson elskede sin gamle stol, og sådan en ender til sidst som storskrald."),
+    ("storskrald", "Monica Geller ville nyde en storskraldsdag og endelig få det gamle rod ud."),
+    ("storskrald", "Lille fakta: gamle møbler i storskrald bliver tit til nye materialer af træ og metal."),
 ]
 
 # Flat list of just the line texts, for length / GSM-7 checks.
